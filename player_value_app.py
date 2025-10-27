@@ -393,7 +393,7 @@ def show_home_page():
         - Attackers/Midfielders: Goals and assists
         - Defenders: Excluded from offensive stats (defensive metrics)
     - **Age trajectory modeling** with position-specific peak ages
-    - **Market momentum analysis** based on value history (Transfermarkt data)
+    - **Market momentum analysis** based on value history
     - **Premium calculations** for league, age, performance, and contract duration left
     - **Produce recommendation** (Hold/Sell/Consider)
     
@@ -913,6 +913,7 @@ def show_squad_overview_page(estimator):
 if __name__ == "__main__":
     main() 
         
+
 
 
 
