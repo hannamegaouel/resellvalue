@@ -424,14 +424,29 @@ def show_home_page():
 def show_add_players_page():
     st.subheader("➕ Add New Player")
     
+    # First, select position outside the form to make it reactive
+    st.markdown("### Step 1: Select Position")
+    position = st.selectbox("Position*", 
+                           ["Attacker", "Midfielder", "Defender", "Goalkeeper"],
+                           key="position_selector")
+    
+    # Show position-specific info
+    if position == "Goalkeeper":
+        st.info("📊 **Goalkeeper Stats**: You'll enter Clean Sheets and Goals Conceded")
+    elif position == "Defender":
+        st.warning("⚠️ **Important**: Goals and assists are NOT considered for defenders in valuation")
+    else:
+        st.info("⚽ **Performance Stats**: You'll enter Goals and Assists")
+    
+    st.markdown("---")
+    st.markdown("### Step 2: Enter Player Details")
+    
     with st.form("add_player_form"):
         col1, col2 = st.columns(2)
         
         with col1:
             name = st.text_input("Player Name*", placeholder="e.g., Mohamed Salah")
             age = st.number_input("Age*", min_value=16, max_value=40, value=25)
-            position = st.selectbox("Position*", 
-                                   ["Attacker", "Midfielder", "Defender", "Goalkeeper"])
             league = st.selectbox("Current League*",
                                  ["Premier League", "La Liga", "Bundesliga", "Serie A",
                                   "Ligue 1", "Primeira Liga", "Eredivisie", "Other"])
@@ -466,13 +481,16 @@ def show_add_players_page():
         
         st.markdown("##### Current Season Statistics (Optional)")
         
-        # Position-specific stats
+        # Position-specific stats - now clearly visible based on position selection above
         if position == "Goalkeeper":
+            st.markdown("**🧤 Goalkeeper Performance Metrics**")
             col6, col7, col8 = st.columns(3)
             with col6:
-                clean_sheets = st.number_input("Clean Sheets", min_value=0, value=0)
+                clean_sheets = st.number_input("Clean Sheets", min_value=0, value=0,
+                                              help="Number of matches without conceding")
             with col7:
-                goals_conceded = st.number_input("Goals Conceded", min_value=0, value=0)
+                goals_conceded = st.number_input("Goals Conceded", min_value=0, value=0,
+                                                help="Total goals conceded this season")
             with col8:
                 matches_played = st.number_input("Matches Played", min_value=0, value=0)
             
@@ -480,10 +498,12 @@ def show_add_players_page():
             assists = 0
         
         elif position == "Defender":
-            st.info("⚠️ Goals and assists are NOT considered for defenders in valuation")
+            st.markdown("**🛡️ Defender Metrics** (Goals/assists not used in valuation)")
             col6, col7 = st.columns(2)
             with col6:
                 matches_played = st.number_input("Matches Played", min_value=0, value=0)
+            with col7:
+                st.write("")  # Spacer
             
             goals = 0
             assists = 0
@@ -491,11 +511,14 @@ def show_add_players_page():
             goals_conceded = 0
         
         else:  # Attacker or Midfielder
+            st.markdown(f"**⚽ {position} Performance Metrics**")
             col6, col7, col8 = st.columns(3)
             with col6:
-                goals = st.number_input("Goals", min_value=0, value=0)
+                goals = st.number_input("Goals", min_value=0, value=0,
+                                       help="Goals scored this season")
             with col7:
-                assists = st.number_input("Assists", min_value=0, value=0)
+                assists = st.number_input("Assists", min_value=0, value=0,
+                                         help="Assists provided this season")
             with col8:
                 matches_played = st.number_input("Matches Played", min_value=0, value=0)
             
@@ -890,5 +913,6 @@ def show_squad_overview_page(estimator):
 if __name__ == "__main__":
     main() 
         
+
 
 
