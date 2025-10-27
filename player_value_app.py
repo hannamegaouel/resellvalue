@@ -8,7 +8,7 @@ import io
 
 # Page configuration
 st.set_page_config(
-    page_title="Player Value Estimator",
+    page_title="Transfer Window - Resell value calculator",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -382,42 +382,28 @@ def main():
 
 
 def show_home_page():
-    st.subheader("Welcome to the Player Value Estimator")
+   
     
     st.markdown("""
-    ### 🎯 Purpose
-    This tool helps football clubs estimate player resale values and make data-driven transfer decisions.
     
     ### ✨ Key Features
-    - **Conservative Projections**: Uses reduced growth rates and increased decline rates
     - **Playing Time Analysis**: Considers minutes played in current season's main competition
     - **Position-Specific Metrics**: 
         - Goalkeepers: Clean sheets and goals conceded
         - Attackers/Midfielders: Goals and assists
         - Defenders: Excluded from offensive stats (defensive metrics)
     - **Age trajectory modeling** with position-specific peak ages
-    - **Market momentum analysis** based on value history
-    - **Premium calculations** for league, age, performance, and contract
-    - **Smart recommendations** (Hold/Sell/Consider)
-    
-    ### 📊 What's New (Conservative Model)
-    - ✅ **Playing time impact**: Reduced value for players with limited minutes
-    - ✅ **Defender exclusion**: Goals/assists don't affect defender valuations
-    - ✅ **Goalkeeper metrics**: Clean sheets and conceded goals tracked
-    - ✅ **Lower growth rates**: 10% instead of 15% for young players
-    - ✅ **Higher decline rates**: Faster value decrease past peak age
-    - ✅ **Reduced premiums**: More realistic market multipliers
-    - ✅ **Higher minimums**: 90% of asking price instead of 85%
+    - **Market momentum analysis** based on value history (Transfermarkt data)
+    - **Premium calculations** for league, age, performance, and contract duration left
+    - **Produce recommendation** (Hold/Sell/Consider)
     
     ### 🚀 Get Started
-    1. **Add Players** - Input your squad data
+    1. **Add Players** - Input your player data
     2. **Player Analysis** - Get individual valuations
     3. **Squad Overview** - See total portfolio value
     
     ---
     
-    **Note**: This tool provides estimates based on statistical models. Actual transfer fees 
-    depend on many factors including negotiation skills, market timing, and buyer needs.
     """)
     
     # Quick stats if players exist
@@ -904,4 +890,5 @@ def show_squad_overview_page(estimator):
 if __name__ == "__main__":
     main() 
         
+
 
