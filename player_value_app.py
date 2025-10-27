@@ -1,4 +1,4 @@
-      import streamlit as st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -904,3 +904,4 @@ def show_squad_overview_page(estimator):
 if __name__ == "__main__":
     main() 
         
+
