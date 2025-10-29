@@ -56,37 +56,38 @@ class PlayerValueEstimator:
     def __init__(self):
         # More conservative age curves with slower growth and faster decline
         self.age_peak_curves = {
-            'Attacker': {'peak_age': 27, 'decline_rate': 0.10},  # Increased from 0.08
-            'Midfielder': {'peak_age': 28, 'decline_rate': 0.09},  # Increased from 0.07
-            'Defender': {'peak_age': 29, 'decline_rate': 0.08},  # Increased from 0.06
-            'Goalkeeper': {'peak_age': 31, 'decline_rate': 0.06}  # Increased from 0.05
+            'Attacker': {'peak_age': 27, 'decline_rate': 0.10},
+            'Midfielder': {'peak_age': 28, 'decline_rate': 0.09},
+            'Defender': {'peak_age': 29, 'decline_rate': 0.08},
+            'Goalkeeper': {'peak_age': 31, 'decline_rate': 0.06}
         }
         
-    def calculate_playing_time_factor(self, minutes_played, position):
+    def calculate_playing_time_factor(self, minutes_played, total_available_minutes):
         """
-        Calculate multiplier based on playing time in current season's main competition.
-        Reduces value if player hasn't been playing regularly.
+        Calculate multiplier based on playing time percentage in current season.
+        Uses percentage of available minutes rather than absolute numbers.
+        
+        Args:
+            minutes_played: Minutes the player has played
+            total_available_minutes: Total minutes available so far this season
         """
-        # Expected minimum minutes for a starter (varies by position)
-        expected_minutes = {
-            'Attacker': 2000,
-            'Midfielder': 2200,
-            'Defender': 2400,
-            'Goalkeeper': 2700
-        }
+        if total_available_minutes <= 0:
+            return 1.0  # No penalty if season hasn't started
         
-        min_minutes = expected_minutes.get(position, 2200)
+        # Calculate playing time percentage
+        playing_time_pct = minutes_played / total_available_minutes
         
-        if minutes_played >= min_minutes:
-            return 1.0  # Full value - regular starter
-        elif minutes_played >= min_minutes * 0.75:
-            return 0.95  # Frequent player
-        elif minutes_played >= min_minutes * 0.5:
-            return 0.85  # Squad player
-        elif minutes_played >= min_minutes * 0.25:
-            return 0.70  # Backup
+        # Apply factors based on percentage thresholds
+        if playing_time_pct >= 0.75:
+            return 1.0  # Regular starter (75%+ of available minutes)
+        elif playing_time_pct >= 0.60:
+            return 0.95  # Frequent player (60-75%)
+        elif playing_time_pct >= 0.40:
+            return 0.85  # Squad player (40-60%)
+        elif playing_time_pct >= 0.20:
+            return 0.70  # Backup (20-40%)
         else:
-            return 0.55  # Limited playing time - significant penalty
+            return 0.55  # Limited playing time (<20%) - significant penalty
     
     def calculate_age_factor(self, current_age, position, years_ahead=2):
         """Calculate value multiplier based on age curve - MORE CONSERVATIVE"""
@@ -133,19 +134,19 @@ class PlayerValueEstimator:
         recent_growth = growth_rates[-1] if growth_rates else 0
         weighted_growth = 0.6 * recent_growth + 0.4 * avg_growth
         
-        # More conservative momentum multipliers (reduced from previous values)
+        # More conservative momentum multipliers
         if weighted_growth > 0.3:
-            return 1.30  # Reduced from 1.5
+            return 1.30
         elif weighted_growth > 0.2:
-            return 1.20  # Reduced from 1.35
+            return 1.20
         elif weighted_growth > 0.1:
-            return 1.10  # Reduced from 1.2
+            return 1.10
         elif weighted_growth > 0:
-            return 1.05  # Reduced from 1.1
+            return 1.05
         elif weighted_growth > -0.1:
             return 1.0
         else:
-            return 0.80  # Reduced from 0.85 - more penalty for declining value
+            return 0.80
     
     def calculate_premium_factor(self, player_data):
         """Calculate premium factors for asking price - MORE CONSERVATIVE"""
@@ -160,61 +161,52 @@ class PlayerValueEstimator:
         league = str(player_data.get('league', '')).strip()
         
         if league in top_tier_1:
-            premium += 0.12  # Reduced from 0.15
+            premium += 0.12
         elif league in top_tier_2:
-            premium += 0.10  # Reduced from 0.12
+            premium += 0.10
         elif league in top_tier_3:
-            premium += 0.06  # Reduced from 0.08
+            premium += 0.06
         else:
             premium += 0.02
         
         # Age premium - more conservative
         age = player_data.get('age', 25)
         if age < 23:
-            premium += 0.18  # Reduced from 0.25
+            premium += 0.18
         elif age < 25:
-            premium += 0.10  # Reduced from 0.15
+            premium += 0.10
         elif age < 27:
-            premium += 0.03  # Reduced from 0.05
+            premium += 0.03
         
-        # Performance premium - EXCLUDES DEFENDERS from goals/assists
-        # For Goalkeepers: uses clean sheets and goals conceded
-        # For Attackers/Midfielders: uses goals and assists
+        # Performance premium - position-specific
         try:
             if position == 'Goalkeeper':
-                # Goalkeeper-specific metrics
                 clean_sheets = int(player_data.get('clean_sheets', 0))
                 goals_conceded = int(player_data.get('goals_conceded', 0))
                 matches_played = int(player_data.get('matches_played', 1))
                 
-                # Calculate clean sheet ratio
                 if matches_played > 0:
                     clean_sheet_ratio = clean_sheets / matches_played
                     goals_per_game = goals_conceded / matches_played
                     
-                    # Premium for excellent goalkeeping
                     if clean_sheet_ratio > 0.5 and goals_per_game < 0.8:
-                        premium += 0.15  # Reduced from 0.20
+                        premium += 0.15
                     elif clean_sheet_ratio > 0.4 and goals_per_game < 1.0:
-                        premium += 0.10  # Reduced from 0.12
+                        premium += 0.10
                     elif clean_sheet_ratio > 0.3 and goals_per_game < 1.2:
-                        premium += 0.05  # Reduced from 0.06
+                        premium += 0.05
             
             elif position in ['Attacker', 'Midfielder']:
-                # Only count goals and assists for attackers and midfielders
                 goals = float(player_data.get('goals', 0))
                 assists = float(player_data.get('assists', 0))
                 total_contributions = goals + assists
                 
-                # More conservative performance premiums
                 if total_contributions > 20:
-                    premium += 0.15  # Reduced from 0.20
+                    premium += 0.15
                 elif total_contributions > 10:
-                    premium += 0.08  # Reduced from 0.12
+                    premium += 0.08
                 elif total_contributions > 5:
-                    premium += 0.04  # Reduced from 0.06
-            
-            # Defenders: NO premium for goals/assists (defensive metrics not included here)
+                    premium += 0.04
             
         except (ValueError, TypeError):
             pass
@@ -226,32 +218,32 @@ class PlayerValueEstimator:
             years_remaining = contract_year - current_year
             
             if years_remaining >= 4:
-                premium += 0.12  # Reduced from 0.15
+                premium += 0.12
             elif years_remaining >= 3:
-                premium += 0.08  # Reduced from 0.10
+                premium += 0.08
             elif years_remaining >= 2:
-                premium += 0.04  # Reduced from 0.05
+                premium += 0.04
             elif years_remaining <= 1:
-                premium -= 0.15  # Increased penalty
+                premium -= 0.15
         except (ValueError, TypeError):
             pass
         
         return premium
 
     def estimate_future_value(self, current_value, age, position, value_history, 
-                            minutes_played, years_ahead=2):
-        """Estimate player value in future years - MORE CONSERVATIVE with playing time"""
+                            minutes_played, total_available_minutes, years_ahead=2):
+        """Estimate player value in future years with percentage-based playing time"""
         age_factor = self.calculate_age_factor(age, position, years_ahead)
         momentum_factor = self.calculate_momentum_factor(value_history)
-        playing_time_factor = self.calculate_playing_time_factor(minutes_played, position)
+        playing_time_factor = self.calculate_playing_time_factor(minutes_played, total_available_minutes)
         
         # Apply all factors including playing time
         base_projection = current_value * age_factor * momentum_factor * playing_time_factor
         
         # Increased uncertainty for more conservative estimates
-        uncertainty = 0.20 + (0.06 * years_ahead)  # Increased from 0.15 and 0.05
+        uncertainty = 0.20 + (0.06 * years_ahead)
         low_estimate = base_projection * (1 - uncertainty)
-        high_estimate = base_projection * (1 + uncertainty * 1.3)  # Reduced from 1.5
+        high_estimate = base_projection * (1 + uncertainty * 1.3)
         
         return {
             'projected_value': base_projection,
@@ -259,7 +251,8 @@ class PlayerValueEstimator:
             'high_estimate': high_estimate,
             'age_factor': age_factor,
             'momentum_factor': momentum_factor,
-            'playing_time_factor': playing_time_factor
+            'playing_time_factor': playing_time_factor,
+            'playing_time_pct': (minutes_played / total_available_minutes * 100) if total_available_minutes > 0 else 0
         }
 
     def analyze_player(self, player_data):
@@ -269,20 +262,23 @@ class PlayerValueEstimator:
         position = player_data['position']
         current_value = float(player_data['current_value'])
         value_history = player_data['value_history']
-        minutes_played = int(player_data.get('minutes_played', 2000))  # Default to reasonable amount
+        minutes_played = int(player_data.get('minutes_played', 0))
+        total_available_minutes = int(player_data.get('total_available_minutes', 0))
         
         # Get projections with playing time consideration
         projection_1y = self.estimate_future_value(
-            current_value, age, position, value_history, minutes_played, 1
+            current_value, age, position, value_history, 
+            minutes_played, total_available_minutes, 1
         )
         projection_2y = self.estimate_future_value(
-            current_value, age, position, value_history, minutes_played, 2
+            current_value, age, position, value_history, 
+            minutes_played, total_available_minutes, 2
         )
         
         # Calculate premium
         premium = self.calculate_premium_factor(player_data)
         
-        # More conservative asking prices (reduced multiplier from 1.2 to 1.15)
+        # More conservative asking prices
         asking_price_now = current_value * premium * 1.15
         asking_price_1y = projection_1y['projected_value'] * premium
         asking_price_2y = projection_2y['projected_value'] * premium
@@ -292,11 +288,11 @@ class PlayerValueEstimator:
         minimum_1y = asking_price_1y * 0.90
         minimum_2y = asking_price_2y * 0.90
         
-        # Determine recommendation - more conservative thresholds
+        # Determine recommendation
         recommendation = self._get_recommendation(
             age, position, projection_1y, current_value, 
             player_data.get('contract_expires', 2027),
-            minutes_played
+            minutes_played, total_available_minutes
         )
         
         return {
@@ -321,7 +317,7 @@ class PlayerValueEstimator:
         }
 
     def _get_recommendation(self, age, position, projection_1y, current_value, 
-                          contract_year, minutes_played):
+                          contract_year, minutes_played, total_available_minutes):
         """Generate recommendation - MORE CONSERVATIVE"""
         curve = self.age_peak_curves.get(position, self.age_peak_curves['Midfielder'])
         peak_age = curve['peak_age']
@@ -329,30 +325,54 @@ class PlayerValueEstimator:
         growth_potential = projection_1y['projected_value'] / current_value
         years_to_contract = contract_year - 2025
         
-        # Playing time consideration
-        playing_time_good = minutes_played >= 1500  # At least half season as starter
+        # Playing time consideration (percentage-based)
+        if total_available_minutes > 0:
+            playing_time_pct = minutes_played / total_available_minutes
+            playing_time_good = playing_time_pct >= 0.50  # At least 50% of available minutes
+        else:
+            playing_time_good = True  # No penalty if season hasn't started
         
         # More conservative SELL recommendations
         if age >= peak_age + 1 or years_to_contract <= 1.5 or not playing_time_good:
+            reason_parts = []
+            if age >= peak_age + 1:
+                reason_parts.append(f"age {age} (peak: {peak_age})")
+            if years_to_contract <= 1.5:
+                reason_parts.append(f"contract expires soon ({contract_year})")
+            if not playing_time_good and total_available_minutes > 0:
+                reason_parts.append(f"limited playing time ({playing_time_pct*100:.0f}%)")
+            
+            reasoning = "Sell now: " + ", ".join(reason_parts) + ". Value may decline."
+            
             return {
                 'action': 'SELL',
-                'reasoning': f"Age {age} (peak: {peak_age}), contract situation, or limited playing time. Value may decline.",
+                'reasoning': reasoning,
                 'color': 'sell'
             }
         
-        # More conservative HOLD recommendations (higher thresholds)
+        # More conservative HOLD recommendations
         elif age < peak_age - 2 and growth_potential > 1.15 and years_to_contract >= 3 and playing_time_good:
+            if total_available_minutes > 0:
+                reasoning = f"Young player ({age}) with strong growth potential (+{(growth_potential-1)*100:.0f}%) and regular playing time ({playing_time_pct*100:.0f}%)."
+            else:
+                reasoning = f"Young player ({age}) with strong growth potential (+{(growth_potential-1)*100:.0f}%)."
+            
             return {
                 'action': 'HOLD',
-                'reasoning': f"Young player ({age}) with strong growth potential (+{(growth_potential-1)*100:.0f}%) and regular playing time.",
+                'reasoning': reasoning,
                 'color': 'hold'
             }
         
         # Everything else is CONSIDER
         else:
+            if total_available_minutes > 0:
+                reasoning = f"At transition point. Evaluate offers carefully. Playing time: {playing_time_pct*100:.0f}% of available minutes."
+            else:
+                reasoning = f"At transition point. Evaluate offers carefully. Monitor playing time throughout season."
+            
             return {
                 'action': 'CONSIDER OFFERS',
-                'reasoning': f"At transition point. Evaluate offers carefully. Playing time: {minutes_played} min.",
+                'reasoning': reasoning,
                 'color': 'consider'
             }
 
@@ -382,20 +402,18 @@ def main():
 
 
 def show_home_page():
-   
-    
     st.markdown("""
     
     ### ✨ Key Features
-    - **Playing Time Analysis**: Considers minutes played in current season's main competition
+    - **Percentage-Based Playing Time**: Analyzes playing time as % of available minutes (works at any point in season)
     - **Position-Specific Metrics**: 
         - Goalkeepers: Clean sheets and goals conceded
         - Attackers/Midfielders: Goals and assists
-        - Defenders: Excluded from offensive stats (defensive metrics)
+        - Defenders: Excluded from offensive stats
     - **Age trajectory modeling** with position-specific peak ages
     - **Market momentum analysis** based on value history
-    - **Premium calculations** for league, age, performance, and contract duration left
-    - **Produce recommendation** (Hold/Sell/Consider)
+    - **Premium calculations** for league, age, performance, and contract duration
+    - **Smart recommendations** (Hold/Sell/Consider)
     
     ### 🚀 Get Started
     1. **Add Players** - Input your player data
@@ -424,7 +442,7 @@ def show_home_page():
 def show_add_players_page():
     st.subheader("➕ Add New Player")
     
-    # First, select position outside the form to make it reactive
+    # First, select position outside the form
     st.markdown("### Step 1: Select Position")
     position = st.selectbox("Position*", 
                            ["Attacker", "Midfielder", "Defender", "Goalkeeper"],
@@ -458,12 +476,36 @@ def show_add_players_page():
             contract_expires = st.number_input("Contract Expires (Year)*", 
                                              min_value=2025, max_value=2035, 
                                              value=2027)
-            
-            # NEW: Minutes played in main competition
-            minutes_played = st.number_input("Minutes Played (Current Season)*",
+        
+        st.markdown("##### ⏱️ Playing Time (Percentage-Based)")
+        st.info("💡 **New Feature**: Enter minutes as a percentage of total available minutes. Works at any point in the season!")
+        
+        col_time1, col_time2 = st.columns(2)
+        with col_time1:
+            minutes_played = st.number_input("Minutes Played*",
                                            min_value=0, max_value=5000,
-                                           value=2000,
-                                           help="Total minutes in main domestic league competition")
+                                           value=0,
+                                           help="Minutes played this season")
+        with col_time2:
+            total_available_minutes = st.number_input("Total Available Minutes*",
+                                                     min_value=0, max_value=5000,
+                                                     value=0,
+                                                     help="Total minutes team has played this season (e.g., 10 matches × 90 min = 900 min)")
+        
+        # Show percentage automatically
+        if total_available_minutes > 0:
+            playing_pct = (minutes_played / total_available_minutes) * 100
+            st.markdown(f"**Playing Time: {playing_pct:.1f}%** of available minutes")
+            if playing_pct >= 75:
+                st.success("✅ Regular starter")
+            elif playing_pct >= 60:
+                st.info("ℹ️ Frequent player")
+            elif playing_pct >= 40:
+                st.warning("⚠️ Squad player")
+            elif playing_pct >= 20:
+                st.warning("⚠️ Backup")
+            else:
+                st.error("❌ Limited playing time")
         
         st.markdown("##### Historical Values (Optional but Recommended)")
         st.markdown("*Enter values from previous years for better projections*")
@@ -481,7 +523,7 @@ def show_add_players_page():
         
         st.markdown("##### Current Season Statistics (Optional)")
         
-        # Position-specific stats - now clearly visible based on position selection above
+        # Position-specific stats
         if position == "Goalkeeper":
             st.markdown("**🧤 Goalkeeper Performance Metrics**")
             col6, col7, col8 = st.columns(3)
@@ -503,7 +545,7 @@ def show_add_players_page():
             with col6:
                 matches_played = st.number_input("Matches Played", min_value=0, value=0)
             with col7:
-                st.write("")  # Spacer
+                st.write("")
             
             goals = 0
             assists = 0
@@ -548,6 +590,7 @@ def show_add_players_page():
                     'current_value': current_value,
                     'contract_expires': contract_expires,
                     'minutes_played': minutes_played,
+                    'total_available_minutes': total_available_minutes,
                     'goals': goals,
                     'assists': assists,
                     'clean_sheets': clean_sheets,
@@ -566,14 +609,16 @@ def show_add_players_page():
         st.subheader("Current Squad")
         
         for idx, player in enumerate(st.session_state.players):
-            with st.expander(f"{player['name']} - {player['position']} - €{player['current_value']}M"):
+            playing_pct = (player['minutes_played'] / player['total_available_minutes'] * 100) if player['total_available_minutes'] > 0 else 0
+            
+            with st.expander(f"{player['name']} - {player['position']} - €{player['current_value']}M - Playing Time: {playing_pct:.0f}%"):
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.write(f"**Age:** {player['age']}")
                     st.write(f"**League:** {player['league']}")
                 with col2:
                     st.write(f"**Contract:** {player['contract_expires']}")
-                    st.write(f"**Minutes:** {player['minutes_played']}")
+                    st.write(f"**Minutes:** {player['minutes_played']}/{player['total_available_minutes']}")
                 with col3:
                     if player['position'] == 'Goalkeeper':
                         st.write(f"**Clean Sheets:** {player['clean_sheets']}")
@@ -614,7 +659,11 @@ def show_player_analysis_page(estimator):
     with col3:
         st.metric("League", player_data['league'])
     with col4:
-        st.metric("Minutes Played", f"{player_data['minutes_played']}")
+        if player_data['total_available_minutes'] > 0:
+            playing_pct = (player_data['minutes_played'] / player_data['total_available_minutes']) * 100
+            st.metric("Playing Time", f"{playing_pct:.1f}%")
+        else:
+            st.metric("Playing Time", "N/A")
     
     # Current value and recommendation
     st.markdown("### 💰 Current Valuation")
@@ -784,11 +833,13 @@ def show_squad_overview_page(estimator):
     df_data = []
     for analysis in analyses:
         player = next(p for p in st.session_state.players if p['name'] == analysis['name'])
+        playing_pct = (player['minutes_played'] / player['total_available_minutes'] * 100) if player['total_available_minutes'] > 0 else 0
+        
         df_data.append({
             'Player': analysis['name'],
             'Age': player['age'],
             'Position': player['position'],
-            'Minutes': player['minutes_played'],
+            'Playing Time %': f"{playing_pct:.0f}%",
             'Current Value': f"€{analysis['current']['value']:.1f}M",
             'Asking Price': f"€{analysis['current']['asking_price']:.1f}M",
             '1Y Projection': f"€{analysis['projection_1y']['projected_value']:.1f}M",
@@ -876,12 +927,16 @@ def show_squad_overview_page(estimator):
             detailed_data = []
             for analysis in analyses:
                 player = next(p for p in st.session_state.players if p['name'] == analysis['name'])
+                playing_pct = (player['minutes_played'] / player['total_available_minutes'] * 100) if player['total_available_minutes'] > 0 else 0
+                
                 detailed_data.append({
                     'Player': analysis['name'],
                     'Age': player['age'],
                     'Position': player['position'],
                     'League': player['league'],
                     'Minutes Played': player['minutes_played'],
+                    'Total Available Minutes': player['total_available_minutes'],
+                    'Playing Time %': playing_pct,
                     'Current Value': analysis['current']['value'],
                     'Current Asking': analysis['current']['asking_price'],
                     'Current Minimum': analysis['current']['minimum_price'],
@@ -911,9 +966,4 @@ def show_squad_overview_page(estimator):
 
 
 if __name__ == "__main__":
-    main() 
-        
-
-
-
-
+    main()
